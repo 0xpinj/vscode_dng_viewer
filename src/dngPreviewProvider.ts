@@ -37,9 +37,11 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 		// Decode and push result
 		await this._decodeAndPost(document, webviewPanel);
 
-		// Watch for file changes on disk
+		// Watch for changes to this specific file on disk
+		const fileName = document.uri.path.split('/').pop() || '*';
+		const dirUri = vscode.Uri.joinPath(document.uri, '..');
 		const watcher = vscode.workspace.createFileSystemWatcher(
-			new vscode.RelativePattern(document.uri, '*')
+			new vscode.RelativePattern(dirUri, fileName)
 		);
 		watcher.onDidChange(async () => {
 			// Clear cache so it re-decodes

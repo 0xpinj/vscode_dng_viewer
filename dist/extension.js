@@ -4611,8 +4611,10 @@ var DngPreviewProvider = class {
     };
     webviewPanel.webview.html = this._getHtml(webviewPanel.webview);
     await this._decodeAndPost(document2, webviewPanel);
+    const fileName = document2.uri.path.split("/").pop() || "*";
+    const dirUri = vscode2.Uri.joinPath(document2.uri, "..");
     const watcher = vscode2.workspace.createFileSystemWatcher(
-      new vscode2.RelativePattern(document2.uri, "*")
+      new vscode2.RelativePattern(dirUri, fileName)
     );
     watcher.onDidChange(async () => {
       document2.jpegDataUri = void 0;
