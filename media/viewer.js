@@ -99,8 +99,34 @@
 	}
 
 	function zoomActual(centerX, centerY) {
-		if (centerX !== undefined && centerY !== undefined) {
-			// Zoom to 100% centered on the clicked point
+		if (centerX !== undefined && centerY !== undefined && fitMode) {
+			// Transitioning from fit mode: CSS max-width/max-height scaling
+			// means the stored scale (1) doesn't reflect the actual visual scale.
+			// Compute translate from the image's rendered position directly.
+			var imgRect = img.getBoundingClientRect();
+			var containerRect = container.getBoundingClientRect();
+
+			// Normalized click position within the displayed image (0 to 1)
+			var nx = Math.max(0, Math.min(1, (centerX - imgRect.left) / imgRect.width));
+			var ny = Math.max(0, Math.min(1, (centerY - imgRect.top) / imgRect.height));
+
+			// Click position relative to the container
+			var cx = centerX - containerRect.left;
+			var cy = centerY - containerRect.top;
+
+			// In non-fit mode the image is centered by flexbox at natural size.
+			// Element top-left (before transform) relative to container:
+			var elemLeft = (containerRect.width - img.naturalWidth) / 2;
+			var elemTop = (containerRect.height - img.naturalHeight) / 2;
+
+			// Set translate so the clicked image point stays at the click position
+			fitMode = false;
+			scale = 1;
+			translateX = cx - elemLeft - nx * img.naturalWidth;
+			translateY = cy - elemTop - ny * img.naturalHeight;
+			updateTransform();
+		} else if (centerX !== undefined && centerY !== undefined) {
+			// Already in zoom mode: use ratio-based focal point math
 			setScale(1, centerX, centerY);
 		} else {
 			translateX = 0;
