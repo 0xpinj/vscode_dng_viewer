@@ -1,0 +1,119 @@
+{
+  "name": "vscode-dng-viewer",
+  "displayName": "DNG Viewer",
+  "description": "View DNG (Digital Negative) raw camera files directly in VS Code, with zoom/pan controls and EXIF metadata display.",
+  "version": "0.1.0",
+  "publisher": "aaron",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Visualization"
+  ],
+  "keywords": [
+    "dng",
+    "raw",
+    "camera",
+    "image",
+    "viewer",
+    "digital negative"
+  ],
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:dngViewer.open"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "dngViewer.open",
+        "title": "DNG: Open Preview"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "resourceExtname =~ /\\.(dng|DNG)$/",
+          "command": "dngViewer.open",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "dngViewer.open",
+          "when": "true"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "dngViewer.preview",
+        "displayName": "DNG Preview",
+        "selector": [
+          {
+            "filenamePattern": "*.dng"
+          },
+          {
+            "filenamePattern": "*.DNG"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "configuration": {
+      "title": "DNG Viewer",
+      "properties": {
+        "dngViewer.halfSize": {
+          "type": "boolean",
+          "default": true,
+          "description": "Decode at half resolution for faster loading. Disable for full-resolution viewing."
+        },
+        "dngViewer.useCameraWb": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use the camera's recorded white balance. If disabled, uses auto white balance."
+        },
+        "dngViewer.demosaicMode": {
+          "type": "string",
+          "default": "fast",
+          "enum": ["fast", "full"],
+          "enumDescriptions": [
+            "Half-size Bayer extraction (2x2 block → 1 pixel). Much faster, good for previews.",
+            "Full-resolution bilinear demosaicing. Slower but preserves full detail."
+          ],
+          "description": "Demosaicing mode for CFA/Bayer DNG files."
+        },
+        "dngViewer.previewMaxWidth": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "Maximum preview width in pixels. Images wider than this are downscaled. Set higher for more detail."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run bundle",
+    "compile": "tsc -p ./",
+    "bundle": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "watch": "npm run bundle -- --watch",
+    "package": "vsce package",
+    "build-variants": "node scripts/build-variants.js"
+  },
+  "dependencies": {
+    "exifr": "^7.1.3",
+    "jpeg-js": "^0.4.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.74.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.5.0"
+  }
+}

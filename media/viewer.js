@@ -1,0 +1,193 @@
+(function () {
+	'use strict';
+
+	// --- Message handler: receive data from extension, switch from loading to viewer ---
+	window.addEventListener('message', function (event) {
+		var msg = event.data;
+		if (msg.type === 'loaded') {
+			document.getElementById('loading-container').style.display = 'none';
+			document.body.classList.remove('loading');
+			var viewer = document.getElementById('viewer-container');
+			viewer.style.display = '';
+			document.getElementById('preview-image').src = msg.jpegDataUri;
+			document.getElementById('image-info').innerHTML = msg.width + ' &times; ' + msg.height;
+			document.getElementById('metadata-content').textContent = JSON.stringify(msg.metadata, null, 2);
+			initViewer();
+		} else if (msg.type === 'error') {
+			document.getElementById('loading-container').style.display = 'none';
+			document.body.classList.remove('loading');
+			document.body.classList.add('error');
+			var errEl = document.getElementById('error-container');
+			errEl.style.display = '';
+			document.getElementById('error-message').textContent = msg.message;
+		}
+	});
+
+	var viewerInitialized = false;
+	function initViewer() {
+		if (viewerInitialized) return;
+		viewerInitialized = true;
+
+	var img = document.getElementById('preview-image');
+	var container = document.getElementById('image-container');
+	var metaPanel = document.getElementById('metadata-panel');
+	var zoomLabel = document.getElementById('zoom-level');
+
+	const btnFit = document.getElementById('btn-zoom-fit');
+	const btnActual = document.getElementById('btn-zoom-100');
+	const btnIn = document.getElementById('btn-zoom-in');
+	const btnOut = document.getElementById('btn-zoom-out');
+	const btnMeta = document.getElementById('btn-toggle-meta');
+
+	let scale = 1;
+	let minScale = 0.1;
+	let translateX = 0;
+	let translateY = 0;
+	let isPanning = false;
+	let panStartX = 0;
+	let panStartY = 0;
+	let panStartTransX = 0;
+	let panStartTransY = 0;
+	let fitMode = true;
+
+	function updateTransform() {
+		if (fitMode) {
+			img.style.transform = '';
+			img.style.maxWidth = '100%';
+			img.style.maxHeight = '100%';
+			img.style.cursor = 'zoom-in';
+			container.style.overflow = 'hidden';
+		} else {
+			img.style.maxWidth = 'none';
+			img.style.maxHeight = 'none';
+			img.style.transform = 'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')';
+			img.style.cursor = scale > 1 ? 'grab' : 'zoom-in';
+			container.style.overflow = 'hidden';
+		}
+		zoomLabel.textContent = fitMode ? 'Fit' : Math.round(scale * 100) + '%';
+	}
+
+	function setScale(newScale, centerX, centerY) {
+		fitMode = false;
+		var oldScale = scale;
+		scale = Math.max(minScale, Math.min(newScale, 32));
+
+		// Zoom towards the cursor position
+		if (centerX !== undefined && centerY !== undefined) {
+			var rect = container.getBoundingClientRect();
+			var cx = centerX - rect.left;
+			var cy = centerY - rect.top;
+			translateX = cx - (cx - translateX) * (scale / oldScale);
+			translateY = cy - (cy - translateY) * (scale / oldScale);
+		}
+
+		updateTransform();
+	}
+
+	function fitToWindow() {
+		fitMode = true;
+		scale = 1;
+		translateX = 0;
+		translateY = 0;
+		updateTransform();
+	}
+
+	function zoomActual() {
+		translateX = 0;
+		translateY = 0;
+		setScale(1);
+	}
+
+	// --- Toolbar buttons ---
+	btnFit.addEventListener('click', fitToWindow);
+	btnActual.addEventListener('click', zoomActual);
+	btnIn.addEventListener('click', function () { setScale(scale * 1.25); });
+	btnOut.addEventListener('click', function () { setScale(scale / 1.25); });
+
+	// --- EXIF toggle ---
+	btnMeta.addEventListener('click', function () {
+		var visible = metaPanel.style.display !== 'none';
+		metaPanel.style.display = visible ? 'none' : 'flex';
+		btnMeta.classList.toggle('active', !visible);
+	});
+
+	// --- Mouse wheel zoom ---
+	container.addEventListener('wheel', function (e) {
+		e.preventDefault();
+		var factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+		setScale(scale * factor, e.clientX, e.clientY);
+	}, { passive: false });
+
+	// --- Pan with mouse drag (left-click or middle-click) ---
+	container.addEventListener('mousedown', function (e) {
+		var isMiddle = e.button === 1;
+		if (fitMode && !isMiddle) {
+			// Left-click in fit mode → go to 100%
+			zoomActual();
+			return;
+		}
+		if (!fitMode || isMiddle) {
+			isPanning = true;
+			panStartX = e.clientX;
+			panStartY = e.clientY;
+			panStartTransX = translateX;
+			panStartTransY = translateY;
+			img.style.cursor = 'grabbing';
+			e.preventDefault();
+		}
+	});
+
+	// Prevent middle-click default (auto-scroll icon)
+	container.addEventListener('auxclick', function (e) {
+		if (e.button === 1) e.preventDefault();
+	});
+
+	window.addEventListener('mousemove', function (e) {
+		if (!isPanning) return;
+		translateX = panStartTransX + (e.clientX - panStartX);
+		translateY = panStartTransY + (e.clientY - panStartY);
+		updateTransform();
+	});
+
+	window.addEventListener('mouseup', function () {
+		if (isPanning) {
+			isPanning = false;
+			img.style.cursor = scale > 1 ? 'grab' : 'zoom-in';
+		}
+	});
+
+	var PAN_STEP = 80;
+
+	function pan(dx, dy) {
+		if (fitMode) return;
+		translateX += dx;
+		translateY += dy;
+		updateTransform();
+	}
+
+	// --- Keyboard shortcuts ---
+	window.addEventListener('keydown', function (e) {
+		if (e.key === '0') fitToWindow();
+		else if (e.key === '1') zoomActual();
+		else if (e.key === '+' || e.key === '=') setScale(scale * 1.25);
+		else if (e.key === '-') setScale(scale / 1.25);
+		else if (e.key === 'i' || e.key === 'I') btnMeta.click();
+		else if (e.key === 'ArrowUp') { e.preventDefault(); pan(0, PAN_STEP); }
+		else if (e.key === 'ArrowDown') { e.preventDefault(); pan(0, -PAN_STEP); }
+		else if (e.key === 'ArrowLeft') { e.preventDefault(); pan(PAN_STEP, 0); }
+		else if (e.key === 'ArrowRight') { e.preventDefault(); pan(-PAN_STEP, 0); }
+	});
+
+	// --- Double-click to toggle fit/100% ---
+	container.addEventListener('dblclick', function () {
+		if (fitMode) {
+			zoomActual();
+		} else {
+			fitToWindow();
+		}
+	});
+
+	// Initialize in fit mode
+	fitToWindow();
+	} // end initViewer
+})();
