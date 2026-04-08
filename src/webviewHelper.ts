@@ -75,6 +75,8 @@ export async function showDngInWebview(
 			metadata: result.metadata,
 			width: result.width,
 			height: result.height,
+			originalWidth: result.originalWidth,
+			originalHeight: result.originalHeight,
 		});
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
