@@ -10,7 +10,13 @@
 			var viewer = document.getElementById('viewer-container');
 			viewer.style.display = '';
 			document.getElementById('preview-image').src = msg.jpegDataUri;
-			document.getElementById('image-info').innerHTML = msg.width + ' &times; ' + msg.height;
+			var origW = msg.originalWidth || msg.width;
+			var origH = msg.originalHeight || msg.height;
+			var infoText = origW + ' &times; ' + origH;
+			if (origW !== msg.width || origH !== msg.height) {
+				infoText += ' (preview ' + msg.width + ' &times; ' + msg.height + ')';
+			}
+			document.getElementById('image-info').innerHTML = infoText;
 			document.getElementById('metadata-content').textContent = JSON.stringify(msg.metadata, null, 2);
 			initViewer();
 		} else if (msg.type === 'error') {

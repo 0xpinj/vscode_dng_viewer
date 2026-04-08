@@ -10,6 +10,8 @@ export interface DecodeResult {
 	metadata: Record<string, unknown>;
 	width: number;
 	height: number;
+	originalWidth: number;
+	originalHeight: number;
 }
 
 /**
@@ -29,11 +31,17 @@ async function tryExifrThumbnail(filePath: string): Promise<DecodeResult | null>
 		const jpeg = require('jpeg-js') as typeof import('jpeg-js');
 		const decoded = jpeg.decode(Buffer.from(thumbBuf), { useTArray: true, formatAsRGBA: false });
 
+		// Extract original image dimensions from EXIF metadata
+		const origWidth = (meta?.ImageWidth ?? meta?.ExifImageWidth ?? decoded.width) as number;
+		const origHeight = (meta?.ImageHeight ?? meta?.ExifImageHeight ?? decoded.height) as number;
+
 		return {
 			jpegBuffer: Buffer.from(thumbBuf),
 			metadata: meta || {},
 			width: decoded.width,
 			height: decoded.height,
+			originalWidth: origWidth,
+			originalHeight: origHeight,
 		};
 	} catch {
 		return null;
@@ -243,13 +251,24 @@ async function fullDecode(filePath: string): Promise<DecodeResult> {
 		);
 	}
 
+	// Extract original image dimensions from EXIF (before any decode/downscale)
+	let origWidth = 0, origHeight = 0;
+	try {
+		const exifr = await import('exifr');
+		const meta = await exifr.parse(filePath, true);
+		if (meta) {
+			origWidth = (meta.ImageWidth ?? meta.ExifImageWidth ?? 0) as number;
+			origHeight = (meta.ImageHeight ?? meta.ExifImageHeight ?? 0) as number;
+		}
+	} catch { /* best-effort */ }
+
 	const errors: string[] = [];
 	for (const tool of tools) {
 		const result = await tryDecode(tool, filePath, halfSize, useCameraWb);
 		if (result && result.ppmBuffer.length > 0) {
 			try {
 				const { width, height, pixels } = parsePpm(result.ppmBuffer);
-				return await encodePpmToResult(filePath, pixels, width, height, previewMaxWidth);
+				return await encodePpmToResult(filePath, pixels, width, height, previewMaxWidth, origWidth || width, origHeight || height);
 			} catch (e) {
 				errors.push(`${tool}: PPM parse failed — ${e instanceof Error ? e.message : e}`);
 			}
@@ -262,7 +281,7 @@ async function fullDecode(filePath: string): Promise<DecodeResult> {
 	try {
 		const direct = decodeDngDirect(filePath, demosaicMode === 'full');
 		if (direct) {
-			return await encodePpmToResult(filePath, direct.pixels, direct.width, direct.height, previewMaxWidth);
+			return await encodePpmToResult(filePath, direct.pixels, direct.width, direct.height, previewMaxWidth, origWidth || direct.width, origHeight || direct.height);
 		}
 		errors.push('direct JS decoder: format not supported');
 	} catch (e) {
@@ -314,7 +333,7 @@ function downsampleRgb(pixels: Buffer, width: number, height: number, maxWidth: 
 	return { pixels: out, width: newW, height: newH };
 }
 
-async function encodePpmToResult(filePath: string, pixels: Buffer, width: number, height: number, maxWidth?: number): Promise<DecodeResult> {
+async function encodePpmToResult(filePath: string, pixels: Buffer, width: number, height: number, maxWidth?: number, originalWidth?: number, originalHeight?: number): Promise<DecodeResult> {
 	// Downsample for faster JPEG encoding and smaller output
 	const limit = maxWidth ?? 1000;
 	const ds = downsampleRgb(pixels, width, height, limit);
@@ -344,6 +363,8 @@ async function encodePpmToResult(filePath: string, pixels: Buffer, width: number
 		metadata,
 		width: ds.width,
 		height: ds.height,
+		originalWidth: originalWidth ?? width,
+		originalHeight: originalHeight ?? height,
 	};
 }
 

@@ -57,6 +57,8 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 				document.metadata = result.metadata;
 				document.width = result.width;
 				document.height = result.height;
+				document.originalWidth = result.originalWidth;
+				document.originalHeight = result.originalHeight;
 			}
 
 			webviewPanel.webview.postMessage({
@@ -65,6 +67,8 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 				metadata: document.metadata,
 				width: document.width,
 				height: document.height,
+				originalWidth: document.originalWidth,
+				originalHeight: document.originalHeight,
 			});
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
