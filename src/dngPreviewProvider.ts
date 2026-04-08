@@ -81,6 +81,15 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 		}
 	}
 
+	private _getNonce(): string {
+		const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+		let nonce = '';
+		for (let i = 0; i < 32; i++) {
+			nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+		}
+		return nonce;
+	}
+
 	private _getHtml(webview: vscode.Webview): string {
 		const styleUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this._extensionUri, 'media', 'viewer.css')
@@ -88,12 +97,14 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 		const scriptUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this._extensionUri, 'media', 'viewer.js')
 		);
+		const nonce = this._getNonce();
 
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 	<link href="${styleUri}" rel="stylesheet">
 </head>
 <body class="loading">
@@ -130,7 +141,7 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 		</div>
 	</div>
 
-	<script src="${scriptUri}"></script>
+	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
 	}
