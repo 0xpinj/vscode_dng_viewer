@@ -4480,10 +4480,12 @@ async function fullDecode(filePath) {
     );
   }
   let origWidth = 0, origHeight = 0;
+  let exifMetadata = {};
   try {
     const exifr = await Promise.resolve().then(() => __toESM(require_full_umd()));
     const meta = await exifr.parse(filePath, true);
     if (meta) {
+      exifMetadata = meta;
       origWidth = meta.ImageWidth ?? meta.ExifImageWidth ?? 0;
       origHeight = meta.ImageHeight ?? meta.ExifImageHeight ?? 0;
     }
@@ -4495,7 +4497,7 @@ async function fullDecode(filePath) {
     if (result && result.ppmBuffer.length > 0) {
       try {
         const { width, height, pixels } = parsePpm(result.ppmBuffer);
-        return await encodePpmToResult(filePath, pixels, width, height, previewMaxWidth, origWidth || width, origHeight || height);
+        return await encodePpmToResult(pixels, width, height, previewMaxWidth, exifMetadata, origWidth || width, origHeight || height);
       } catch (e) {
         errors.push(`${tool}: PPM parse failed \u2014 ${e instanceof Error ? e.message : e}`);
       }
@@ -4506,7 +4508,7 @@ async function fullDecode(filePath) {
   try {
     const direct = decodeDngDirect(filePath, demosaicMode === "full");
     if (direct) {
-      return await encodePpmToResult(filePath, direct.pixels, direct.width, direct.height, previewMaxWidth, origWidth || direct.width, origHeight || direct.height);
+      return await encodePpmToResult(direct.pixels, direct.width, direct.height, previewMaxWidth, exifMetadata, origWidth || direct.width, origHeight || direct.height);
     }
     errors.push("direct JS decoder: format not supported");
   } catch (e) {
@@ -4554,7 +4556,7 @@ function downsampleRgb(pixels, width, height, maxWidth) {
   }
   return { pixels: out, width: newW, height: newH };
 }
-async function encodePpmToResult(filePath, pixels, width, height, maxWidth, originalWidth, originalHeight) {
+function encodePpmToResult(pixels, width, height, maxWidth, metadata, originalWidth, originalHeight) {
   const limit = maxWidth ?? 1e3;
   const ds = downsampleRgb(pixels, width, height, limit);
   const jpeg = require_jpeg_js();
@@ -4566,15 +4568,9 @@ async function encodePpmToResult(filePath, pixels, width, height, maxWidth, orig
     rgbaData[j + 3] = 255;
   }
   const encoded = jpeg.encode({ data: rgbaData, width: ds.width, height: ds.height }, 90);
-  let metadata = {};
-  try {
-    const exifr = await Promise.resolve().then(() => __toESM(require_full_umd()));
-    metadata = await exifr.parse(filePath, true) || {};
-  } catch {
-  }
   return {
     jpegBuffer: Buffer.from(encoded.data),
-    metadata,
+    metadata: metadata || {},
     width: ds.width,
     height: ds.height,
     originalWidth: originalWidth ?? width,

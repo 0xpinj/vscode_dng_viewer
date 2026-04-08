@@ -251,12 +251,14 @@ async function fullDecode(filePath: string): Promise<DecodeResult> {
 		);
 	}
 
-	// Extract original image dimensions from EXIF (before any decode/downscale)
+	// Extract EXIF metadata once (used for original dimensions + metadata panel)
 	let origWidth = 0, origHeight = 0;
+	let exifMetadata: Record<string, unknown> = {};
 	try {
 		const exifr = await import('exifr');
 		const meta = await exifr.parse(filePath, true);
 		if (meta) {
+			exifMetadata = meta;
 			origWidth = (meta.ImageWidth ?? meta.ExifImageWidth ?? 0) as number;
 			origHeight = (meta.ImageHeight ?? meta.ExifImageHeight ?? 0) as number;
 		}
@@ -268,7 +270,7 @@ async function fullDecode(filePath: string): Promise<DecodeResult> {
 		if (result && result.ppmBuffer.length > 0) {
 			try {
 				const { width, height, pixels } = parsePpm(result.ppmBuffer);
-				return await encodePpmToResult(filePath, pixels, width, height, previewMaxWidth, origWidth || width, origHeight || height);
+				return await encodePpmToResult(pixels, width, height, previewMaxWidth, exifMetadata, origWidth || width, origHeight || height);
 			} catch (e) {
 				errors.push(`${tool}: PPM parse failed — ${e instanceof Error ? e.message : e}`);
 			}
@@ -281,7 +283,7 @@ async function fullDecode(filePath: string): Promise<DecodeResult> {
 	try {
 		const direct = decodeDngDirect(filePath, demosaicMode === 'full');
 		if (direct) {
-			return await encodePpmToResult(filePath, direct.pixels, direct.width, direct.height, previewMaxWidth, origWidth || direct.width, origHeight || direct.height);
+			return await encodePpmToResult(direct.pixels, direct.width, direct.height, previewMaxWidth, exifMetadata, origWidth || direct.width, origHeight || direct.height);
 		}
 		errors.push('direct JS decoder: format not supported');
 	} catch (e) {
@@ -333,7 +335,7 @@ function downsampleRgb(pixels: Buffer, width: number, height: number, maxWidth: 
 	return { pixels: out, width: newW, height: newH };
 }
 
-async function encodePpmToResult(filePath: string, pixels: Buffer, width: number, height: number, maxWidth?: number, originalWidth?: number, originalHeight?: number): Promise<DecodeResult> {
+function encodePpmToResult(pixels: Buffer, width: number, height: number, maxWidth?: number, metadata?: Record<string, unknown>, originalWidth?: number, originalHeight?: number): DecodeResult {
 	// Downsample for faster JPEG encoding and smaller output
 	const limit = maxWidth ?? 1000;
 	const ds = downsampleRgb(pixels, width, height, limit);
@@ -349,18 +351,9 @@ async function encodePpmToResult(filePath: string, pixels: Buffer, width: number
 
 	const encoded = jpeg.encode({ data: rgbaData, width: ds.width, height: ds.height }, 90);
 
-	// Get EXIF metadata via exifr
-	let metadata: Record<string, unknown> = {};
-	try {
-		const exifr = await import('exifr');
-		metadata = (await exifr.parse(filePath, true)) || {};
-	} catch {
-		// metadata extraction is best-effort
-	}
-
 	return {
 		jpegBuffer: Buffer.from(encoded.data),
-		metadata,
+		metadata: metadata || {},
 		width: ds.width,
 		height: ds.height,
 		originalWidth: originalWidth ?? width,
