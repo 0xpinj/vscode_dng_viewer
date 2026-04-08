@@ -8,10 +8,14 @@ export class DngDocument implements vscode.CustomDocument {
 	public jpegDataUri: string | undefined;
 	/** Cached metadata. */
 	public metadata: Record<string, unknown> | undefined;
-	/** Image width after decode. */
+	/** Preview image width after decode/downsample. */
 	public width: number | undefined;
-	/** Image height after decode. */
+	/** Preview image height after decode/downsample. */
 	public height: number | undefined;
+	/** Original image width from the DNG file. */
+	public originalWidth: number | undefined;
+	/** Original image height from the DNG file. */
+	public originalHeight: number | undefined;
 
 	constructor(uri: vscode.Uri) {
 		this.uri = uri;

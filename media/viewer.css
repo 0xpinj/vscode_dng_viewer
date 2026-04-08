@@ -171,11 +171,40 @@ body.error {
 	color: var(--vscode-foreground);
 }
 
-.metadata-panel pre {
-	font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+/* === Camera info summary === */
+.camera-info {
+	margin-bottom: 12px;
+	padding-bottom: 12px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border, #454545);
+}
+
+.info-row {
+	display: flex;
+	justify-content: space-between;
+	padding: 3px 0;
 	font-size: 12px;
 	line-height: 1.5;
+}
+
+.info-label {
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+	margin-right: 12px;
+}
+
+.info-value {
+	color: var(--vscode-foreground);
+	text-align: right;
+	word-break: break-word;
+}
+
+/* === Raw metadata === */
+.metadata-panel pre {
+	font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+	font-size: 11px;
+	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
 	white-space: pre-wrap;
 	word-break: break-all;
+	opacity: 0.7;
 }

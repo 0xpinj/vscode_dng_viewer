@@ -37,9 +37,11 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 		// Decode and push result
 		await this._decodeAndPost(document, webviewPanel);
 
-		// Watch for file changes on disk
+		// Watch for changes to this specific file on disk
+		const fileName = document.uri.path.split('/').pop() || '*';
+		const dirUri = vscode.Uri.joinPath(document.uri, '..');
 		const watcher = vscode.workspace.createFileSystemWatcher(
-			new vscode.RelativePattern(document.uri, '*')
+			new vscode.RelativePattern(dirUri, fileName)
 		);
 		watcher.onDidChange(async () => {
 			// Clear cache so it re-decodes
@@ -57,6 +59,8 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 				document.metadata = result.metadata;
 				document.width = result.width;
 				document.height = result.height;
+				document.originalWidth = result.originalWidth;
+				document.originalHeight = result.originalHeight;
 			}
 
 			webviewPanel.webview.postMessage({
@@ -65,6 +69,8 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 				metadata: document.metadata,
 				width: document.width,
 				height: document.height,
+				originalWidth: document.originalWidth,
+				originalHeight: document.originalHeight,
 			});
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
@@ -75,6 +81,15 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 		}
 	}
 
+	private _getNonce(): string {
+		const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+		let nonce = '';
+		for (let i = 0; i < 32; i++) {
+			nonce += chars.charAt(Math.floor(Math.random() * chars.length));
+		}
+		return nonce;
+	}
+
 	private _getHtml(webview: vscode.Webview): string {
 		const styleUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this._extensionUri, 'media', 'viewer.css')
@@ -82,12 +97,14 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 		const scriptUri = webview.asWebviewUri(
 			vscode.Uri.joinPath(this._extensionUri, 'media', 'viewer.js')
 		);
+		const nonce = this._getNonce();
 
 		return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 	<link href="${styleUri}" rel="stylesheet">
 </head>
 <body class="loading">
@@ -118,13 +135,15 @@ export class DngPreviewProvider implements vscode.CustomReadonlyEditorProvider<D
 				<img id="preview-image" alt="DNG Preview" draggable="false">
 			</div>
 			<div class="metadata-panel" id="metadata-panel" style="display:none;">
-				<h3>EXIF Metadata</h3>
+				<h3>Camera Info</h3>
+				<div id="camera-info" class="camera-info"></div>
+				<h3>All Metadata</h3>
 				<pre id="metadata-content"></pre>
 			</div>
 		</div>
 	</div>
 
-	<script src="${scriptUri}"></script>
+	<script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
 	}
