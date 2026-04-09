@@ -105,18 +105,22 @@ function findTag(entries: IfdEntry[], tag: number): IfdEntry | undefined {
 function undoFloatPredictor(data: Uint8Array, width: number, height: number, channels: number, bytesPerSample: number): Buffer {
 	const rowBytes = width * channels * bytesPerSample;
 	const out = Buffer.alloc(data.length);
+	const predictorStride = channels * bytesPerSample;
 
 	for (let y = 0; y < height; y++) {
 		const rowOff = y * rowBytes;
+		if (rowOff + rowBytes > data.length) {
+			throw new Error(`Predictor 3 row ${y} is truncated`);
+		}
 
 		// Step 1: Undo byte-level horizontal differencing
 		// First pixel's bytes are stored as-is; subsequent are deltas
 		const temp = Buffer.alloc(rowBytes);
-		for (let b = 0; b < channels * bytesPerSample; b++) {
+		for (let b = 0; b < predictorStride; b++) {
 			temp[b] = data[rowOff + b];
 		}
-		for (let b = channels * bytesPerSample; b < rowBytes; b++) {
-			temp[b] = (temp[b - channels * bytesPerSample] + data[rowOff + b]) & 0xFF;
+		for (let b = predictorStride; b < rowBytes; b++) {
+			temp[b] = (temp[b - predictorStride] + data[rowOff + b]) & 0xFF;
 		}
 
 		// Step 2: Un-transpose bytes
@@ -124,11 +128,16 @@ function undoFloatPredictor(data: Uint8Array, width: number, height: number, cha
 		const sampleCount = width * channels;
 		for (let s = 0; s < sampleCount; s++) {
 			for (let b = 0; b < bytesPerSample; b++) {
-				out[rowOff + s * bytesPerSample + b] = temp[rowOff + b * sampleCount + s];
+				out[rowOff + s * bytesPerSample + b] = temp[b * sampleCount + s];
 			}
 		}
 	}
 	return out;
+}
+
+// Exported for regression coverage of multi-row TIFF Predictor 3 decoding.
+export function undoFloatPredictorForTest(data: Uint8Array, width: number, height: number, channels: number, bytesPerSample: number): Buffer {
+	return undoFloatPredictor(data, width, height, channels, bytesPerSample);
 }
 
 /** Undo integer horizontal differencing predictor (TIFF Predictor 2). */

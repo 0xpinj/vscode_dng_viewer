@@ -115,6 +115,7 @@
   "scripts": {
     "vscode:prepublish": "npm run bundle",
     "compile": "tsc -p ./",
+    "test": "npm run compile && node scripts/test-float-predictor.js",
     "bundle": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
     "watch": "npm run bundle -- --watch",
     "package": "vsce package",
